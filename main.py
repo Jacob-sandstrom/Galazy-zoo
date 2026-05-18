@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 
 
 np.random.seed(100)
-
+torch.manual_seed(100)
 
 # %%
 class GalaxyZooDataset(Dataset):
@@ -325,25 +325,33 @@ def train_loop(training_loader, validation_loader, model, epochs, loss_fun=WRMSE
         val_label_losses.append(label_loss)
     return val_losses, val_label_losses, train_losses
 
+
 # %% Training loop
 
-# train_loss_fun = WRMSELoss(weight=torch.cat([torch.tensor([1, 1, 1]), torch.add(torch.zeros(34), 1e-12)]))
-train_loss_fun = WRMSELoss()
+# # Weights based on class imbalance and classification accuracy of model without weighting
+# weight = torch.tensor([1,1,10, 5,1, 5,1, 1,5, 10,5,5,10, 1,1, 1,1,10, 5,10,10,5,5,5,10, 1,10,1, 5,5,1, 10,1,10,10,10,5])
+
+# Weights calculated from validation dataset on model trained without weights as w = 1/(recall+0.1) where recall is the proportion of samples with label > 0.7 that have prediction > 0.5. The 0.1 is added to avoid extremely high weights for classes with very low recall.
+weight = torch.tensor([0.9511135816574097, 0.9314120411872864, 10.0, 0.9519004225730896, 0.9369822144508362, 1.0865874290466309, 0.9840983748435974, 0.9977966547012329, 1.5113871097564697, 10.0, 1.1022576093673706, 1.0969793796539307, 10.0, 1.0945684909820557, 0.9138110280036926, 0.9713574647903442, 1.09375, 2.307692289352417, 1.0447760820388794, 10.0, 10.0, 10.0, 10.0, 1.919191837310791, 10.0, 1.0646387338638306, 10.0, 0.9090908765792847, 2.307692289352417, 1.428571343421936, 1.27516770362854, 10.0, 1.1170213222503662, 10.0, 10.0, 10.0, 10.0])
+train_loss_fun = WRMSELoss(weight=weight)
+
+# train_loss_fun = WRMSELoss()
 # train_loss_fun = nn.CrossEntropyLoss()
 # train_loss_fun = nn.L1Loss()
 # loss = WRMSELoss(weight=)
 
-model_path = "./model/galaxy_nn.pth"
-continue_training = True
+model_path = "./model/galaxy_nn_weighted.pth"
+continue_training = False
 if continue_training:
     galaxy_nn.model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
 
 # %%
-val_losses, val_label_losses, train_losses = train_loop(train_loader, val_loader, galaxy_nn, epochs=2, loss_fun=train_loss_fun)
+val_losses, val_label_losses, train_losses = train_loop(train_loader, val_loader, galaxy_nn, epochs=100, loss_fun=train_loss_fun)
 
+model_path = "./model/galaxy_nn_weighted.pth"
+torch.save(galaxy_nn.model.state_dict(), model_path)
 
-# torch.save(galaxy_nn.model.state_dict(), model_path)
 
 # %% Evaluate the model
 test_loss_common_sense, label_loss_common_sense = test_loop(test_loader, commonSense)
@@ -377,16 +385,22 @@ plt.show()
 
 
 
-
+# -------------------------------------------------------------------------------------------------------
+#
+#
+#   Plotting:
+#
+#
+# -------------------------------------------------------------------------------------------------------
 
 
 # %% Test the model on a single example
-galaxy_nn.model.eval()
-sample_im, sample_label = train_loader.dataset[0]
+# galaxy_nn.model.eval()
+# sample_im, sample_label = train_loader.dataset[0]
 
-pred = galaxy_nn(sample_im.unsqueeze(0))
-print(pred)
-print(sample_label)
+# pred = galaxy_nn(sample_im.unsqueeze(0))
+# print(pred)
+# print(sample_label)
 
 
 
@@ -406,21 +420,21 @@ plt.show()
 
 # %% Showcasing class imbalance
 
-cutoff = 0.5
-using_dataset = train_dataset
-data_size = len(using_dataset)
-classes = {}
-for i in range(37):
-    classes[class_names[i]] = np.where(using_dataset.labels[:, i] > cutoff)
+# cutoff = 0.5
+# using_dataset = train_dataset
+# data_size = len(using_dataset)
+# classes = {}
+# for i in range(37):
+#     classes[class_names[i]] = np.where(using_dataset.labels[:, i] > cutoff)
 
-for i in range(37):
-    print(f"{class_names[i]}: {len(classes[class_names[i]][0])} samples")
+# for i in range(37):
+#     print(f"{class_names[i]}: {len(classes[class_names[i]][0])} samples")
 
 
 
-plt.bar(class_names, [len(classes[class_name][0])/data_size for class_name in class_names], label=f"Low confidence samples (label > {cutoff})", alpha=1)
+# plt.bar(class_names, [len(classes[class_name][0])/data_size for class_name in class_names], label=f"Low confidence samples (label > {cutoff})", alpha=1)
 cutoff = 0.7
-using_dataset = train_dataset
+using_dataset = test_dataset
 data_size = len(using_dataset)
 classes = {}
 for i in range(37):
@@ -488,4 +502,15 @@ ax.set_xlabel("Class")
 ax.set_ylabel("Recall (proportion of samples with prediction > 0.5)\n RMSE model Loss")
 ax.set_title(f"Accuracy (recall) of trained model on test data with high class confidence(label > {cutoff})")
 plt.show()
+
+
+# %%
+# print(label_loss)
+
+# print(torch.div(torch.ones(37), torch.tensor(label_loss)))
+
+# print(torch.div(torch.ones(37), torch.add(torch.tensor(recalls), torch.ones(37)*0.1)))
+w = torch.div(torch.ones(37), torch.add(torch.tensor(recalls), torch.ones(37)*0.1))
+w[2] = 10
+print(list([float(weight) for weight in w]))
 # %%
