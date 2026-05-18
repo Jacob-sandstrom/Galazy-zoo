@@ -340,16 +340,16 @@ train_loss_fun = WRMSELoss(weight=weight)
 # train_loss_fun = nn.L1Loss()
 # loss = WRMSELoss(weight=)
 
-model_path = "./model/galaxy_nn_weighted.pth"
-continue_training = False
+model_path = "./model/galaxy_nn.pth"
+continue_training = True
 if continue_training:
     galaxy_nn.model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
 
 # %%
-val_losses, val_label_losses, train_losses = train_loop(train_loader, val_loader, galaxy_nn, epochs=100, loss_fun=train_loss_fun)
+val_losses, val_label_losses, train_losses = train_loop(train_loader, val_loader, galaxy_nn, epochs=5, loss_fun=train_loss_fun)
 
-model_path = "./model/galaxy_nn_weighted.pth"
+model_path = "./model/galaxy_nn_weighted_pretrained.pth"
 torch.save(galaxy_nn.model.state_dict(), model_path)
 
 
